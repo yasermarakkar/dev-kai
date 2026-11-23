@@ -13,7 +13,14 @@ import { logger } from './logger.js';
 import { requireAuth } from './auth.js';
 import { recordAudit } from './audit.js';
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.DB_POOL_MAX ?? 10),
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+  statement_timeout: 5_000,
+  ssl: { rejectUnauthorized: true, ca: process.env.DB_CA_CERT },
+});
 const app = express();
 app.use(helmet());
 app.use(cors({ origin: ['https://app.example.com'], credentials: true }));
@@ -68,4 +75,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal error', requestId: req.id });
 });
 
-app.listen(3000);
+const server = app.listen(3000);
+
+process.on('SIGTERM', () => {
+  server.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
+});

@@ -98,7 +98,8 @@ export async function runAudit({ root, only, config = {}, confirmed = new Set(),
       // Several patterns in one check can hit the same line — keep one finding per location.
       const seen = new Set();
       const findings = (result.findings ?? []).filter((f) => {
-        const key = `${f.file}:${f.line ?? ''}:${f.line ? '' : f.text ?? ''}`;
+        // Same line + same text = same finding; distinct issues on one line are kept.
+        const key = `${f.file}:${f.line ?? ''}:${f.text ?? ''}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
