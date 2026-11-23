@@ -40,4 +40,12 @@ router.post('/preview', async (req, res) => {
   res.send(`<h1>${req.body.title}</h1>` + (await page.text()));
 });
 
+router.get('/orders/:id', async (req, res) => {
+  try {
+    res.json(await db.Order.findByPk(req.params.id));
+  } catch (err) {
+    res.status(500).json({ message: 'Something went wrong' });
+  }
+});
+
 module.exports = router;

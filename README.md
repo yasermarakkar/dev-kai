@@ -17,6 +17,7 @@ readiness/
   README.md      ← overall score + "fix first" list
   security.md    ← checklist with [x]/[ ] items, file:line evidence, why + fix
   logging.md
+  monitoring.md
   report.json    ← with --format json, for CI / dashboards
 ```
 
@@ -36,7 +37,7 @@ Scan options: `--only security,logging` · `--format console,md,json` · `--out 
 |---|---|---|
 | Matching | Regex, line by line | Comment-aware, follows statements across lines |
 | Comments | Can match commented-out code | Ignored |
-| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels |
+| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels, health handlers that skip the DB, public `/metrics`, silent 5xx catch blocks |
 | Findings | file:line | file:line + surrounding code |
 | Speed | Milliseconds — run on every commit | Seconds — run in CI / before release |
 
@@ -105,8 +106,8 @@ Add `review: true` to a check to run it only with `--review`.
 | 1 | Core engine, CLI, markdown/JSON reports, **Security** (18 quick + 4 in-depth + 9 manual) | done |
 | 1b | `--review` in-depth mode, Node 21+ | done |
 | 2 | **Logging** (11 quick + 2 in-depth + 5 manual) — logger, levels, request ids, redaction, swallowed errors | done |
-| 3 | **Monitoring & observability** — health/readiness endpoints, metrics, tracing (OpenTelemetry), error tracking, alerts | next |
-| 4 | **Auditing** — audit trail for auth/admin/data changes, immutability, retention | |
+| 3 | **Monitoring** (11 quick + 3 in-depth + 7 manual) — health/readiness, error tracking (server + frontend), metrics, tracing, probes, alerts as code, RUM, source maps | done |
+| 4 | **Auditing** — audit trail for auth/admin/data changes, immutability, retention | next |
 | 5 | **Database** — indexes on foreign keys / filtered columns, migrations, pooling, N+1, backups | |
 | 6 | **Scalability & load balancing** — statelessness, graceful shutdown, timeouts, caching, queues | |
 | 7 | **Reliability** — retries/backoff, circuit breakers, idempotency, error handling | |

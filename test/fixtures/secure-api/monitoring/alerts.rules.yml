@@ -1,0 +1,9 @@
+groups:
+  - name: secure-api
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          runbook: https://runbooks.example.com/secure-api/high-error-rate

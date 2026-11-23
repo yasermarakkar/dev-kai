@@ -38,4 +38,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message, stack: err.stack });
 });
 
+const client = require('prom-client');
+client.collectDefaultMetrics();
+app.get('/health', (req, res) => res.send('ok'));
+app.get('/metrics', async (req, res) => res.send(await client.register.metrics()));
+
 app.listen(3000);

@@ -1,4 +1,6 @@
+import './instrument.js';
 import express from 'express';
+import * as Sentry from '@sentry/node';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -43,6 +45,20 @@ app.post('/orders', requireAuth, async (req, res) => {
     res.status(500).json({ message: 'Internal error', requestId: req.id });
   }
 });
+
+app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+
+app.get('/readyz', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ready' });
+  } catch (err) {
+    req.log.warn({ err }, 'readiness failed');
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   req.log?.error(err);
