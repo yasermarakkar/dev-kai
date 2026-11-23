@@ -94,7 +94,7 @@ const outboundTimeouts = defineCheck({
   why: 'Default fetch/axios wait forever. One slow downstream service fills your event loop with pending calls and takes every app that depends on you down with it.',
   fix: 'axios: `axios.create({ timeout: 5000 })`. fetch: `fetch(url, { signal: AbortSignal.timeout(5000) })`. got/ky: `timeout`. Pair with retries + backoff for idempotent calls.',
   run(ctx) {
-    const calls = ctx.grep(HTTP_CLIENT_CALL);
+    const calls = ctx.grep(HTTP_CLIENT_CALL, { codeOnly: true });
     if (!calls.length) return skip('No outbound HTTP calls found.');
     const hasTimeout = ctx.contains(/\btimeout\s*:\s*\{?\s*[\w.]+|AbortSignal\.timeout\s*\(|axios\.defaults\.timeout|headersTimeout|bodyTimeout|setTimeout\s*\(\s*\(\)\s*=>\s*\w*\.abort/);
     if (!hasTimeout) return fail(`${calls.length} outbound call(s), no timeout configured anywhere.`, calls);
@@ -351,7 +351,7 @@ const perCallTimeouts = defineCheck({
     const findings = [];
     const axiosDefault = ctx.contains(/axios\.defaults\.timeout\s*=|axios\.create\s*\(\s*\{[^}]*timeout/);
     for (const f of ctx.appCodeFiles) {
-      const code = ctx.code(f);
+      const code = ctx.codeOnly(f); // string contents blanked: "fetch(" in a message is not a call
       if (!code || !HTTP_CLIENT_CALL.test(code)) continue;
       const lineOf = lineIndex(code);
       const re = new RegExp(HTTP_CLIENT_CALL.source, 'g');
@@ -365,7 +365,7 @@ const perCallTimeouts = defineCheck({
         findings.push(ctx.at(f, lineOf(m.index), `${m[0].replace(/^[^\w]/, '').trim()}…) without timeout`));
       }
     }
-    if (!findings.length) return ctx.contains(HTTP_CLIENT_CALL) ? pass('All outbound calls pass a timeout/signal.') : skip('No outbound HTTP calls found.');
+    if (!findings.length) return ctx.contains(HTTP_CLIENT_CALL, { codeOnly: true }) ? pass('All outbound calls pass a timeout/signal.') : skip('No outbound HTTP calls found.');
     return fail(`${findings.length} outbound call(s) without a timeout.`, findings);
   },
 });

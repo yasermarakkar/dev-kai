@@ -17,7 +17,9 @@
   ],
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
-    "scan:self": "node bin/devkai.js scan ."
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-lines=95 --test-coverage-branches=80 --test-coverage-functions=90 \"test/*.test.js\"",
+    "lint": "eslint .",
+    "scan:self": "node bin/devkai.js scan . --review --offline --format console,md,html --fail-on high"
   },
   "engines": {
     "node": ">=21"
@@ -32,5 +34,10 @@
     "devops",
     "cli"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0"
+  }
 }

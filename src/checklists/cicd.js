@@ -126,7 +126,7 @@ const coverage = defineCheck({
     if (!testFiles(ctx).length) return skip('No tests (see CI-002).');
     const configs = ctx.findFiles(/(^|\/)(jest\.config\.[cm]?[jt]s|vitest\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|\.c8rc(\.json)?|\.nycrc(\.json)?|package\.json|codecov\.ya?ml|\.github\/workflows\/.+)$/);
     const text = configs.map((f) => ctx.read(f) ?? '').join('\n');
-    const threshold = /coverageThreshold|thresholds\s*:|check-coverage|--lines\s+\d|"lines"\s*:\s*\d|fail_ci_if_error|target\s*:\s*\d+%/.test(text);
+    const threshold = /coverageThreshold|thresholds\s*:|check-coverage|--lines\s+\d|"lines"\s*:\s*\d|fail_ci_if_error|target\s*:\s*\d+%|--test-coverage-(lines|branches|functions)=\d/.test(text);
     const measured = threshold || /--coverage|coverage\s*:\s*\{|\bc8\b|\bnyc\b|codecov|coveralls|--experimental-test-coverage/.test(text);
     if (threshold) return pass('Coverage threshold enforced.');
     if (measured) return warn('Coverage is measured but no minimum is enforced.');
@@ -159,7 +159,7 @@ const delivery = defineCheck({
   fix: 'Deploy from the pipeline after tests pass (container push + rollout, or the platform\'s Git integration). Keep production credentials only in CI.',
   run(ctx) {
     const cmds = ciFiles(ctx).length ? ciCommands(ctx) : '';
-    const inCi = /\bdeploy\b|vercel\b|netlify\s+deploy|flyctl\s+deploy|fly\s+deploy|aws\s+ecs\s+update-service|ecs-deploy|kubectl\s+(apply|set\s+image|rollout)|helm\s+(upgrade|install)|argocd|serverless\s+deploy|sls\s+deploy|cdk\s+deploy|railway\s+up|gcloud\s+(run|app)\s+deploy|docker\s+(push|buildx[^\n]*--push)|terraform\s+apply|pulumi\s+up|render-deploy|heroku/i.test(cmds);
+    const inCi = /\bdeploy\b|vercel\b|netlify\s+deploy|flyctl\s+deploy|fly\s+deploy|aws\s+ecs\s+update-service|ecs-deploy|kubectl\s+(apply|set\s+image|rollout)|helm\s+(upgrade|install)|argocd|serverless\s+deploy|sls\s+deploy|cdk\s+deploy|railway\s+up|gcloud\s+(run|app)\s+deploy|docker\s+(push|buildx[^\n]*--push)|terraform\s+apply|pulumi\s+up|render-deploy|heroku|npm\s+publish|pnpm\s+publish|yarn\s+npm\s+publish|changeset\s+publish|semantic-release|changesets\/action/i.test(cmds);
     const platform = ctx.findFiles(/(^|\/)(vercel\.json|netlify\.toml|render\.ya?ml|fly\.toml|app\.ya?ml|Procfile|railway\.(json|toml)|amplify\.ya?ml|apprunner\.ya?ml|skaffold\.ya?ml|argocd\/.+|\.platform\.app\.yaml)$/);
     if (inCi) return pass('Deploy step in CI.');
     if (platform.length) return pass(`Platform Git deploys (${platform[0]}).`);
@@ -175,6 +175,7 @@ const environments = defineCheck({
   why: 'Migrations, config and integrations break in ways tests do not catch; staging is where you find out without customers.',
   fix: 'Deploy every merge to staging (or a preview per PR), run smoke tests there, then promote the same artifact to production — ideally with a required approval on the production environment.',
   run(ctx) {
+    if (!ctx.stack.hasBackend && !ctx.stack.frontend.length) return skip('Library/CLI package — no environment to stage.');
     const text = ciText(ctx);
     const files = ctx.files.filter((f) => /\.(ya?ml|json|toml|tf)$/.test(f) || /\.env\.[\w-]+\.(example|sample)$/.test(f));
     const staged = /\b(staging|stage|preview|uat|qa|preprod|pre-prod)\b/i.test(text) || files.some((f) => /staging|preview|preprod/i.test(f));
@@ -355,7 +356,7 @@ const criticalCoverage = defineCheck({
       if (base === 'index') return new RegExp(`['"\`][^'"\`]*${path.posix.basename(path.posix.dirname(f))}(/index)?(\\.[cm]?[jt]sx?)?['"\`]`).test(testText);
       return new RegExp(`['"\`][^'"\`]*\\b${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\.[cm]?[jt]sx?)?['"\`]`).test(testText);
     };
-    const critical = ctx.appCodeFiles.filter((f) => !/\.(jsx|tsx|vue|svelte)$/.test(f) && (CRITICAL_NAME.test(path.posix.basename(f)) || /\.(get|post|put|patch|delete)\s*\(\s*['"`]\//.test(ctx.read(f) ?? '')));
+    const critical = ctx.appCodeFiles.filter((f) => !/\.(jsx|tsx|vue|svelte)$/.test(f) && (CRITICAL_NAME.test(path.posix.basename(f)) || /\.(get|post|put|patch|delete)\s*\(\s*['"`]\//.test(ctx.code(f) ?? '')));
     if (!critical.length) return skip('No route or critical-domain modules found.');
     const untested = critical.filter((f) => !referenced(f));
     if (!untested.length) return pass(`All ${critical.length} critical module(s) are imported by tests.`);

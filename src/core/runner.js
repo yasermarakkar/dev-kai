@@ -4,6 +4,44 @@ import { checklists as allChecklists } from '../checklists/index.js';
 
 const FINDINGS_LIMIT = 25;
 
+// ---------- inline suppressions ----------
+// Inside a comment:
+//   devkai-ignore-file SEC-015 SEC-018      whole file, these checks
+//   devkai-ignore-next-line LOG-002         the following line
+//   … code …  // devkai-ignore SCL-R03      this line
+// Check ids are required ("*" = every check) so nothing is silenced by accident.
+const DIRECTIVE = /(?:\/\/|\/\*|#|<!--|\{\/\*)\s*devkai-ignore(-file|-next-line)?\b([^\n]*)/;
+const idsIn = (text) => new Set(text.match(/\b[A-Z]{1,4}-[A-Z]?\d{1,3}\b|\*/g) ?? []);
+
+function suppressionsFor(ctx, file, cache) {
+  if (cache.has(file)) return cache.get(file);
+  const result = { file: new Set(), lines: new Map() };
+  const text = ctx.read(file);
+  if (text && text.includes('devkai-ignore')) {
+    text.split('\n').forEach((line, i) => {
+      const m = line.match(DIRECTIVE);
+      if (!m) return;
+      const ids = idsIn(m[2]);
+      if (m[1] === '-file') ids.forEach((id) => result.file.add(id));
+      else {
+        const target = m[1] === '-next-line' ? i + 2 : i + 1;
+        const set = result.lines.get(target) ?? new Set();
+        ids.forEach((id) => set.add(id));
+        result.lines.set(target, set);
+      }
+    });
+  }
+  cache.set(file, result);
+  return result;
+}
+
+function isSuppressed(ctx, checkId, finding, cache) {
+  if (!finding.file) return false;
+  const s = suppressionsFor(ctx, finding.file, cache);
+  const has = (set) => set.has(checkId) || set.has('*');
+  return has(s.file) || (finding.line ? has(s.lines.get(finding.line) ?? new Set()) : false);
+}
+
 /**
  * Score = weighted share of applicable checks that pass.
  * warn earns half credit; skip/error/unconfirmed manual are excluded.
@@ -59,6 +97,7 @@ export function selectChecklists(only) {
 export async function runAudit({ root, only, config = {}, confirmed = new Set(), review = false, offline = false, scope }) {
   const ctx = createContext(root, config, { review, offline, scope });
   const disabled = new Set(config.disable ?? []);
+  const suppressionCache = new Map();
   const results = [];
   let reviewOnly = 0;
 
@@ -105,12 +144,23 @@ export async function runAudit({ root, only, config = {}, confirmed = new Set(),
         seen.add(key);
         return true;
       });
+      const kept = findings.filter((f) => !isSuppressed(ctx, check.id, f, suppressionCache));
+      const suppressed = findings.length - kept.length;
+      let { status } = result;
+      let message = result.message ?? '';
+      if (suppressed && !kept.length && (status === 'fail' || status === 'warn')) {
+        status = 'pass';
+        message = `${suppressed} finding(s) suppressed with devkai-ignore comments.`;
+      } else if (suppressed) {
+        message = `${message} (${suppressed} suppressed)`;
+      }
       checks.push({
         ...base,
-        status: result.status,
-        message: result.message ?? '',
-        findings: findings.slice(0, FINDINGS_LIMIT),
-        findingsTotal: findings.length,
+        status,
+        message,
+        suppressed,
+        findings: kept.slice(0, FINDINGS_LIMIT),
+        findingsTotal: kept.length,
       });
     }
 

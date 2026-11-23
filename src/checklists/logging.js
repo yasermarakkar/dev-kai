@@ -138,7 +138,14 @@ const swallowedErrors = defineCheck({
       ...ctx.grep(/\.catch\s*\(\s*(\(\s*\w*\s*\)|\w+)\s*=>\s*(\{\s*\}|null|undefined|void 0)\s*\)/),
       ...ctx.grep(/\.catch\s*\(\s*(function\s*\(\s*\w*\s*\)\s*\{\s*\}|noop|\(\)\s*=>\s*\{\s*\})\s*\)/),
     ]);
-    return findings.length ? fail(`${findings.length} empty catch handler(s).`, findings) : pass('No empty catch blocks found.');
+    // A catch whose only content is a comment is a documented, intentional ignore (as the fix advises).
+    const documented = (h) => {
+      const raw = (ctx.read(h.file) ?? '').split('\n').slice(h.line - 1, h.line + 3).join('\n');
+      return /catch\s*(\([^)]*\))?\s*\{\s*(\/\/|\/\*)|\.catch\s*\([^)]*=>\s*\{\s*(\/\/|\/\*)/.test(raw);
+    };
+    const undocumented = findings.filter((h) => !documented(h));
+    if (!undocumented.length) return pass(findings.length ? `${findings.length} empty catch(es), each explained by a comment.` : 'No empty catch blocks found.');
+    return fail(`${undocumented.length} empty catch handler(s).`, undocumented);
   },
 });
 

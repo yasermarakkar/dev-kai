@@ -9,9 +9,15 @@ const REGEX_PREFIX = /[(,=:[!&|?{};+\-*%<>~^]$|(^|[^\w$])(return|typeof|instance
 /**
  * Replace comments with spaces (newlines kept) so offsets and line numbers
  * stay identical to the original source. Strings, templates and regex
- * literals are left intact.
+ * literals are left intact — unless `blankLiterals` is set, in which case
+ * their contents are blanked too (quotes and `${…}` expressions are kept).
+ * Use that for checks that must only match real code, never text such as
+ * error messages, docs strings or detection patterns.
+ * @param {string} src
+ * @param {{ blankLiterals?: boolean }} [opts]
  */
-export function stripComments(src) {
+export function stripComments(src, opts = {}) {
+  const literals = Boolean(opts.blankLiterals);
   const out = src.split('');
   const n = src.length;
   const templateDepth = []; // brace depth at which each open `${` returns to template
@@ -25,24 +31,28 @@ export function stripComments(src) {
 
   const skipString = (quote) => {
     i++;
+    const start = i;
     while (i < n) {
       const ch = src[i];
       if (ch === '\\') { i += 2; continue; }
-      if (ch === quote) { i++; return; }
-      if (ch === '\n') return; // unterminated — recover
+      if (ch === quote) { if (literals) blank(start, i); i++; return; }
+      if (ch === '\n') { if (literals) blank(start, i); return; } // unterminated — recover
       i++;
     }
+    if (literals) blank(start, Math.min(i, n));
   };
 
   // Scan template body starting after the opening ` (or after a closing } of ${…}).
   const skipTemplate = () => {
+    const start = i;
     while (i < n) {
       const ch = src[i];
       if (ch === '\\') { i += 2; continue; }
-      if (ch === '`') { i++; return 'end'; }
-      if (ch === '$' && src[i + 1] === '{') { i += 2; templateDepth.push(braces); braces++; return 'expr'; }
+      if (ch === '`') { if (literals) blank(start, i); i++; return 'end'; }
+      if (ch === '$' && src[i + 1] === '{') { if (literals) blank(start, i); i += 2; templateDepth.push(braces); braces++; return 'expr'; }
       i++;
     }
+    if (literals) blank(start, Math.min(i, n));
     return 'end';
   };
 
@@ -68,13 +78,14 @@ export function stripComments(src) {
     if (ch === '/' && REGEX_PREFIX.test(lastSignificant || '(')) {
       // regex literal
       i++;
+      const start = i;
       let inClass = false;
       while (i < n && src[i] !== '\n') {
         const c = src[i];
         if (c === '\\') { i += 2; continue; }
         if (c === '[') inClass = true;
         else if (c === ']') inClass = false;
-        else if (c === '/' && !inClass) { i++; break; }
+        else if (c === '/' && !inClass) { if (literals) blank(start, i); i++; break; }
         i++;
       }
       while (i < n && /[a-z]/i.test(src[i])) i++;

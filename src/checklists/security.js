@@ -116,8 +116,11 @@ const envExample = defineCheck({
   why: 'Without a template, people share real .env files over chat to onboard — and secrets spread.',
   fix: 'Commit a `.env.example` listing every variable with placeholder values.',
   run(ctx) {
-    const usesEnv = ctx.contains(/process\.env\.|import\.meta\.env\.|Deno\.env/);
-    if (!usesEnv) return skip('No environment variable usage detected.');
+    // Real reads only (not text in strings/comments), and not standard runtime switches.
+    const STANDARD = /^(NODE_ENV|NO_COLOR|FORCE_COLOR|CI|DEBUG|TZ|HOME|PATH|PWD|TERM|LANG|PORT|HOST|npm_\w+)$/;
+    const names = ctx.grep(/(process\.env|import\.meta\.env|Deno\.env)\.([A-Za-z_]\w*)/, { codeOnly: true })
+      .map((h) => h.match.split('.').pop()).filter((n) => !STANDARD.test(n));
+    if (!names.length) return skip('No app-specific environment variables read.');
     const templates = ctx.findFiles((f) => ENV_FILE_RE.test(f.replace(ENV_TEMPLATE_RE, '')) && ENV_TEMPLATE_RE.test(f));
     return templates.length ? pass(`Found ${templates.join(', ')}.`) : fail('Code reads env vars but no .env.example/.env.sample exists.');
   },
@@ -347,9 +350,10 @@ const tlsVerification = defineCheck({
   run(ctx) {
     const pool = ctx.files.filter((f) => !ctx.isTestFile(f) && (ctx.codeFiles.includes(f) || CONFIG_FILE_RE.test(f) || /Dockerfile|docker-compose|\.env/.test(f)));
     const findings = [
-      ...ctx.grep(/rejectUnauthorized\s*:\s*false/, { files: pool }),
-      ...ctx.grep(/NODE_TLS_REJECT_UNAUTHORIZED['"]?\s*[=:]\s*['"]?0/, { files: pool }),
-      ...ctx.grep(/strictSSL\s*:\s*false|insecure\s*:\s*true/, { files: pool }),
+      // code: the option itself (text inside strings, e.g. docs or messages, does not count)
+      ...ctx.grep(/rejectUnauthorized\s*:\s*false|strictSSL\s*:\s*false|insecure\s*:\s*true|process\.env\.NODE_TLS_REJECT_UNAUTHORIZED\s*=(?!=)/, { files: pool, codeOnly: true }),
+      // config / env / compose files
+      ...ctx.grep(/NODE_TLS_REJECT_UNAUTHORIZED['"]?\s*[=:]\s*['"]?0/, { files: pool.filter((f) => !ctx.codeFiles.includes(f)) }),
     ];
     return findings.length ? fail('TLS verification disabled.', findings) : pass('TLS verification left on.');
   },
@@ -400,12 +404,9 @@ const xssSinks = defineCheck({
   docs: [`${OWASP}/Cross_Site_Scripting_Prevention_Cheat_Sheet.html`],
   run(ctx) {
     const sinks = [
-      ...ctx.grep(/dangerouslySetInnerHTML/),
-      ...ctx.grep(/\bv-html\s*=/),
-      ...ctx.grep(/\{@html\s/),
-      ...ctx.grep(/\.(innerHTML|outerHTML)\s*=(?!=)/),
-      ...ctx.grep(/document\.write\s*\(/),
-      ...ctx.grep(/\[innerHTML\]\s*=/),
+      ...ctx.grep(/dangerouslySetInnerHTML|\.(innerHTML|outerHTML)\s*=(?!=)|document\.write\s*\(/, { codeOnly: true }),
+      // template syntax lives in markup / template strings, so match it as text
+      ...ctx.grep(/\bv-html\s*=|\{@html\s|\[innerHTML\]\s*=/, { filter: (f) => /\.(vue|svelte|html|component\.ts)$/.test(f) }),
     ];
     if (!sinks.length) return pass('No raw HTML sinks found.');
     const sanitized = ctx.hasDep('dompurify', 'isomorphic-dompurify', 'sanitize-html', 'xss');

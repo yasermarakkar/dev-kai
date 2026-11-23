@@ -49,11 +49,11 @@ const retries = defineCheck({
   why: 'Networks drop packets and services restart: a single retry with jitter turns most "random" errors into nothing.',
   fix: 'Retry idempotent calls with exponential backoff + jitter and a small cap (axios-retry, p-retry, cockatiel, got/ky built-in retry). Never retry non-idempotent calls without an idempotency key.',
   run(ctx) {
-    if (!ctx.contains(HTTP_CLIENT_CALL) && !ctx.hasDep('@aws-sdk/client-s3', 'stripe', 'twilio', '@sendgrid/mail')) return skip('No outbound calls found.');
+    if (!ctx.contains(HTTP_CLIENT_CALL, { codeOnly: true }) && !ctx.hasDep('@aws-sdk/client-s3', 'stripe', 'twilio', '@sendgrid/mail')) return skip('No outbound calls found.');
     const libs = RETRY_LIBS.filter((l) => ctx.hasDep(l));
     if (libs.length) return pass(`Retry support via ${libs.join(', ')}.`);
     if (ctx.contains(/\b(retry|withRetry|retryWithBackoff|backoff)\s*\(|maxRetries\s*:|retries\s*:\s*\d/)) return pass('Custom retry logic found.');
-    return fail('Outbound calls without any retry/backoff mechanism.', ctx.grep(HTTP_CLIENT_CALL, { limit: 5 }));
+    return fail('Outbound calls without any retry/backoff mechanism.', ctx.grep(HTTP_CLIENT_CALL, { limit: 5, codeOnly: true }));
   },
 });
 
@@ -65,7 +65,7 @@ const circuitBreaker = defineCheck({
   why: 'When a downstream app is down, retrying every request piles up load on both sides; a breaker fails fast and lets it recover.',
   fix: 'Wrap calls to other apps/third parties with opossum or cockatiel (breaker + timeout + fallback). Return a degraded response instead of an error where possible.',
   run(ctx) {
-    if (!ctx.contains(HTTP_CLIENT_CALL)) return skip('No outbound HTTP calls found.');
+    if (!ctx.contains(HTTP_CLIENT_CALL, { codeOnly: true })) return skip('No outbound HTTP calls found.');
     const libs = BREAKER_LIBS.filter((l) => ctx.hasDep(l));
     if (libs.length) return pass(`Circuit breaking via ${libs.join(', ')}.`);
     if (ctx.contains(/CircuitBreaker|circuitBreaker|breaker\.(fire|execute)/)) return pass('Custom circuit breaker found.');
@@ -235,7 +235,7 @@ const configValidation = defineCheck({
   why: 'A missing env var should stop the deploy at boot — not surface as `undefined` in a payment call three hours later.',
   fix: 'Parse `process.env` once with a schema (zod, envalid, @t3-oss/env-core, env-schema, @nestjs/config validationSchema) and export a typed config object.',
   run(ctx) {
-    const envUses = ctx.grep(/process\.env\.[A-Z_]+/);
+    const envUses = ctx.grep(/process\.env\.[A-Z_]+/, { codeOnly: true });
     if (envUses.length < 3) return skip('Little or no environment configuration.');
     if (ctx.hasDep('envalid', '@t3-oss/env-core', '@t3-oss/env-nextjs', 'env-schema', 'convict', 'znv', '@julr/vite-plugin-validate-env', 'env-var')) return pass('Env validation library in use.');
     if (ctx.contains(/\.(parse|safeParse|validate|assert)\s*\(\s*process\.env\s*\)|validationSchema\s*:|cleanEnv\s*\(|createEnv\s*\(/)) return pass('process.env validated with a schema.');
@@ -281,7 +281,7 @@ const floatingPromises = defineCheck({
   run(ctx) {
     const findings = [];
     for (const f of ctx.appCodeFiles) {
-      const code = ctx.code(f);
+      const code = ctx.codeOnly(f);
       if (!code || !/\.then\s*\(/.test(code)) continue;
       const lineOf = lineIndex(code);
       const re = /\.then\s*\(/g;
@@ -290,8 +290,10 @@ const floatingPromises = defineCheck({
         const lineStart = code.lastIndexOf('\n', m.index) + 1;
         const head = code.slice(lineStart, m.index);
         if (/\b(return|await|yield)\b|=\s*[^=>]|\(\s*$|,\s*$|:\s*$|=>\s*$/.test(head)) continue; // used, not floating
-        // walk to the end of the chain
-        let end = extractArgs(code, m.index + m[0].length - 1).end;
+        // walk to the end of the chain; .then(onOk, onError) already handles rejection
+        const first = extractArgs(code, m.index + m[0].length - 1);
+        if (first.args.length >= 2) continue;
+        let end = first.end;
         let chain = '';
         for (let guard = 0; guard < 6; guard++) {
           const next = code.slice(end).match(/^\s*\.\s*(then|catch|finally)\s*\(/);

@@ -187,6 +187,16 @@ export function createContext(rootDir, config = {}, options = {}) {
   }
   stack.hasBackend = stack.server.length > 0 || stack.fullstack.length > 0;
 
+  const codeOnlyCache = new Map();
+  /** Source with comments AND string/template/regex literal contents blanked: only real code is left. */
+  const codeOnly = (rel) => {
+    if (codeOnlyCache.has(rel)) return codeOnlyCache.get(rel);
+    const text = read(rel);
+    const out = text && isCodeFile(rel) ? stripComments(text, { blankLiterals: true }) : text;
+    codeOnlyCache.set(rel, out);
+    return out;
+  };
+
   const codeCache = new Map();
   /** Source with comments blanked out (same offsets/lines). Non-JS files returned as-is. */
   const code = (rel) => {
@@ -210,7 +220,9 @@ export function createContext(rootDir, config = {}, options = {}) {
    * Quick mode: plain regex, line by line.
    * Review mode: ignores comments, matches across line breaks, attaches surrounding code.
    * @param {RegExp} regex
-   * @param {{ files?: string[], filter?: (rel: string) => boolean, limit?: number }} [opts]
+   * codeOnly: match only real code (ignore comments and the contents of strings/regex literals) in
+   *           both modes — for patterns that describe code constructs (calls, options), not data.
+   * @param {{ files?: string[], filter?: (rel: string) => boolean, limit?: number, codeOnly?: boolean }} [opts]
    * @returns {{ file: string, line: number, text: string, match: string, context?: {line:number,text:string}[] }[]}
    */
   const grep = (regex, opts = {}) => {
@@ -219,12 +231,12 @@ export function createContext(rootDir, config = {}, options = {}) {
     const limit = opts.limit ?? Infinity;
     const hits = [];
     for (const f of pool) {
-      const text = review ? code(f) : read(f);
+      const text = opts.codeOnly ? codeOnly(f) : review ? code(f) : read(f);
       if (!text) continue;
       if (!re.test(text)) continue; // fast reject
       const original = (read(f) ?? '').split(/\r?\n/);
 
-      if (review) {
+      if (review || opts.codeOnly) {
         const g = new RegExp(re.source, `${re.flags}g`);
         const lineOf = lineIndex(text);
         const seen = new Set();
@@ -234,7 +246,7 @@ export function createContext(rootDir, config = {}, options = {}) {
           const line = lineOf(m.index);
           if (seen.has(line)) continue;
           seen.add(line);
-          hits.push({ file: f, line, text: original[line - 1] ?? '', match: m[0], context: contextLines(original, line) });
+          hits.push({ file: f, line, text: original[line - 1] ?? '', match: m[0], ...(review ? { context: contextLines(original, line) } : {}) });
           if (hits.length >= limit) return hits;
         }
         continue;
@@ -284,6 +296,7 @@ export function createContext(rootDir, config = {}, options = {}) {
     exists: (rel) => fileSet.has(rel),
     read,
     code,
+    codeOnly,
     at,
     hasDep,
     grep,

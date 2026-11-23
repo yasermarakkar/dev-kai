@@ -100,6 +100,20 @@ Analysis is static and file-scoped: no type info, no cross-file data flow — it
 - **Score** = severity-weighted share of applicable checks passing (critical 10, high 6, medium 3, low 1).
 - Secrets found are **masked** in all output, so reports are safe to commit.
 
+## Silencing a false positive
+
+Put a comment next to the code (check ids are required, `*` = every check):
+
+```js
+const html = sanitize(input); el.innerHTML = html; // devkai-ignore SEC-018
+// devkai-ignore-next-line LOG-002
+console.log(banner);
+/* devkai-ignore-file SEC-008 — sandboxed formula evaluator, reviewed 2026-11 */
+```
+
+Suppressed findings are counted in the report (`(2 suppressed)`), so they stay visible in review.
+Checks that look for code constructs (calls, options, sinks) already ignore text inside strings, regexes and comments.
+
 ## Config — `devkai.config.json`
 
 ```json
@@ -152,6 +166,20 @@ Add `review: true` to a check to run it only with `--review`.
 Sequelize models and Knex migrations into one model: tables → columns, foreign keys and indexed (leading) columns.
 The database checks use it to find unindexed foreign keys and query filters.
 
+## Developing this package
+
+```bash
+npm ci
+npm run lint            # ESLint
+npm test                # unit + fixture tests
+npm run test:coverage   # fails below 95% lines / 80% branches / 90% functions
+npm run scan:self       # devkai on itself; CI fails on any high/critical finding
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, coverage and `npm audit` on Node 22 and 24, then scans this repo with
+`--review --fail-on high` and uploads the dashboard as a build artifact. Dependabot keeps dev dependencies and
+actions current. The package itself has **no runtime dependencies**.
+
 ## Roadmap
 
 | Step | Checklist | Status |
@@ -169,4 +197,5 @@ The database checks use it to find unindexed foreign keys and query filters.
 | 10 | **API design** (12 quick + 3 in-depth + 7 manual) — contracts, spec sync, versioning, one error format, status codes, payload/GraphQL limits, docs, shared clients, contract tests, naming, rate-limit headers | done |
 | 11 | Per-app reports for monorepos (`--per-app`, `--app`, `devkai apps`) | done |
 | 12 | HTML dashboard (`--format html`) | done |
-| 13 | CI for this package, publish to npm | next |
+| 13 | CI for this package (lint, coverage gate, audit, self-scan) and inline `devkai-ignore` | done |
+| 14 | Publish to npm (release workflow, provenance, changelog) | next |
