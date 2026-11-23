@@ -7,6 +7,6 @@ export const options = {
 };
 
 export default function () {
-  const res = http.get(`${__ENV.BASE_URL}/users?name=alice`);
+  const res = http.get(`${__ENV.BASE_URL}/v1/users?name=alice`);
   check(res, { ok: (r) => r.status === 200 });
 }

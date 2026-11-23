@@ -2,6 +2,9 @@ import './instrument.js';
 import express from 'express';
 import 'express-async-errors';
 import { initialize as initFlags } from 'unleash-client';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yaml';
+import fs from 'node:fs';
 import { config } from './config.js';
 import * as Sentry from '@sentry/node';
 import helmet from 'helmet';
@@ -10,7 +13,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import Redis from 'ioredis';
 import compression from 'compression';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
@@ -18,6 +21,7 @@ import pinoHttp from 'pino-http';
 import { logger } from './logger.js';
 import { requireAuth } from './auth.js';
 import { recordAudit } from './audit.js';
+import { problem } from './problem.js';
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -29,37 +33,45 @@ const pool = new pg.Pool({
 });
 const redis = new Redis(config.REDIS_URL);
 const flags = initFlags({ url: config.UNLEASH_URL, appName: 'secure-api', customHeaders: { Authorization: config.UNLEASH_TOKEN } });
-const app = express();
+const openapi = YAML.parse(fs.readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf8'));
+
+export const app = express();
 app.set('trust proxy', 1);
 app.use(compression());
 app.use(helmet());
 app.use(cors({ origin: ['https://app.example.com'], credentials: true }));
-app.use(rateLimit({ windowMs: 60_000, limit: 100, store: new RedisStore({ sendCommand: (...args) => redis.call(...args) }) }));
+app.use(rateLimit({ windowMs: 60_000, limit: 100, standardHeaders: 'draft-7', legacyHeaders: false, store: new RedisStore({ sendCommand: (...args) => redis.call(...args) }) }));
 app.use(express.json());
 app.use(pinoHttp({ logger }));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
-const Query = z.object({ name: z.string().max(64) });
-
-app.get('/users', async (req, res) => {
-  const { name } = Query.parse(req.query);
-  const cached = await redis.get(`users:${name}`);
-  if (cached) return res.json(JSON.parse(cached));
-  const { rows } = await pool.query('SELECT id, name FROM users WHERE name = $1', [name]);
-  await redis.set(`users:${name}`, JSON.stringify(rows), 'EX', 60);
-  res.json(rows);
+const UsersQuery = z.object({
+  name: z.string().max(64),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-app.post('/login', async (req, res) => {
+app.get('/v1/users', async (req, res) => {
+  const { name, limit } = UsersQuery.parse(req.query);
+  const cacheKey = `users:${name}:${limit}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return res.json(JSON.parse(cached));
+  const { rows } = await pool.query('SELECT id, name FROM users WHERE name = $1 ORDER BY id LIMIT $2', [name, limit]);
+  await redis.set(cacheKey, JSON.stringify({ data: rows }), 'EX', 60);
+  res.json({ data: rows });
+});
+
+app.post('/v1/login', async (req, res) => {
   const ok = await argon2.verify(req.user.hash, req.body.password);
   await recordAudit(pool, req, { action: ok ? 'auth.login.success' : 'auth.login.failure', targetType: 'user', targetId: req.user.id });
+  if (!ok) return problem(res, 401, 'Invalid credentials');
   const token = jwt.sign({ sub: req.user.id }, process.env.JWT_PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '15m' });
-  res.json({ ok, token });
+  res.json({ token });
 });
 
-app.post('/orders', requireAuth, async (req, res) => {
-  if (!flags.isEnabled('orders-enabled')) return res.status(503).json({ message: 'Ordering temporarily disabled' });
+app.post('/v1/orders', requireAuth, async (req, res) => {
+  if (!flags.isEnabled('orders-enabled')) return problem(res, 503, 'Ordering temporarily disabled', { retryAfter: 60 });
   const key = req.get('Idempotency-Key');
-  if (!key) return res.status(400).json({ message: 'Idempotency-Key header required' });
+  if (!key) return problem(res, 400, 'Idempotency-Key header required');
   const previous = await redis.get(`idem:${req.user.id}:${key}`);
   if (previous) return res.status(201).json(JSON.parse(previous));
   const Order = z.object({ sku: z.string(), qty: z.number().int().positive() }).strict();
@@ -71,7 +83,7 @@ app.post('/orders', requireAuth, async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     req.log.error({ err }, 'order insert failed');
-    res.status(500).json({ message: 'Internal error', requestId: req.id });
+    problem(res, 500, 'Internal error', { requestId: req.id });
   }
 });
 
@@ -83,15 +95,17 @@ app.get('/readyz', async (req, res) => {
     res.json({ status: 'ready' });
   } catch (err) {
     req.log.warn({ err }, 'readiness failed');
-    res.status(503).json({ status: 'unavailable' });
+    problem(res, 503, 'Not ready');
   }
 });
 
 Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
+  // Invalid input is the client's mistake: 400 with the issues, not a 500.
+  if (err instanceof ZodError) return problem(res, 400, 'Invalid request', { issues: err.issues });
   req.log?.error(err);
-  res.status(500).json({ message: 'Internal error', requestId: req.id });
+  problem(res, 500, 'Internal error', { requestId: req.id });
 });
 
 const server = app.listen(3000);

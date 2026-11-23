@@ -25,6 +25,8 @@ jobs:
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run lint
+      - run: npm run lint:api
+      - run: npx oasdiff breaking origin/main:openapi.yaml openapi.yaml --fail-on ERR
       - run: npm test
       - run: npm audit --audit-level=high
 

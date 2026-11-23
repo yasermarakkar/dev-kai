@@ -103,7 +103,7 @@ const authEvents = defineCheck({
   fix: 'Record `auth.login.success`, `auth.login.failure` (with reason, no password), `auth.logout`, `auth.password.reset`, `auth.mfa.changed` with user id, IP and user agent.',
   run(ctx) {
     if (!ctx.stack.hasBackend) return skip('No backend detected.');
-    const authFiles = ctx.appCodeFiles.filter((f) => /['"`]\/(api\/)?(auth\/)?(login|signin|sign-in|logout|reset-password|forgot-password)\b|passport\.authenticate|signIn\s*\(|authorize\s*:\s*async/.test(ctx.read(f) ?? ''));
+    const authFiles = ctx.appCodeFiles.filter((f) => /['"`]\/(api\/)?(v\d+\/)?(auth\/)?(login|signin|sign-in|logout|reset-password|forgot-password)\b|passport\.authenticate|signIn\s*\(|authorize\s*:\s*async/.test(ctx.read(f) ?? ''));
     if (!authFiles.length) {
       return ctx.hasDep('next-auth', '@auth/core', '@clerk/nextjs', '@auth0/nextjs-auth0', 'firebase', '@supabase/supabase-js')
         ? warn('Auth is delegated to a provider — enable and export its audit/event log (and tick AUD-M05).')

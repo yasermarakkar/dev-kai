@@ -2,6 +2,7 @@ CREATE TABLE users (
   id    SERIAL PRIMARY KEY,
   email TEXT,
   name  TEXT,
+  password_hash TEXT,
   role  TEXT
 );
 

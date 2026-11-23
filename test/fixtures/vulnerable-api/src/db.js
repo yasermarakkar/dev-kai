@@ -5,6 +5,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, { dialectOptions: { ss
 const User = sequelize.define('users', {
   email: DataTypes.STRING,
   name: DataTypes.STRING,
+  passwordHash: DataTypes.STRING,
   role: DataTypes.STRING,
 });
 

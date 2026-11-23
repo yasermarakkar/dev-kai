@@ -24,6 +24,7 @@ readiness/
   reliability.md
   cicd.md
   frontend.md
+  api.md
   report.json    ← with --format json, for CI / dashboards
 ```
 
@@ -43,7 +44,7 @@ Scan options: `--only security,logging` · `--format console,md,json` · `--out 
 |---|---|---|
 | Matching | Regex, line by line | Comment-aware, follows statements across lines |
 | Comments | Can match commented-out code | Ignored |
-| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels, health handlers that skip the DB, public `/metrics`, silent 5xx catch blocks, routes with no audit event, spoofable audit actor, unrecorded 403s, filtered columns without an index, N+1 queries, multi-write functions without a transaction, module-level state written by handlers, blocking sync calls in handlers, outbound calls without a timeout, async handlers that can hang (Express 4), `.then()` without `.catch()`, catch blocks that answer with success, critical modules no test imports, `.only`/skipped tests, CI jobs without timeouts or concurrency, icon-only buttons without a name, skipped heading levels, WCAG text contrast (CSS + Tailwind), React missing keys / effects without deps |
+| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels, health handlers that skip the DB, public `/metrics`, silent 5xx catch blocks, routes with no audit event, spoofable audit actor, unrecorded 403s, filtered columns without an index, N+1 queries, multi-write functions without a transaction, module-level state written by handlers, blocking sync calls in handlers, outbound calls without a timeout, async handlers that can hang (Express 4), `.then()` without `.catch()`, catch blocks that answer with success, critical modules no test imports, `.only`/skipped tests, CI jobs without timeouts or concurrency, icon-only buttons without a name, skipped heading levels, WCAG text contrast (CSS + Tailwind), React missing keys / effects without deps, unpaginated collection endpoints, raw DB rows with sensitive columns in responses, validation errors answered with 500 |
 | Findings | file:line | file:line + surrounding code |
 | Speed | Milliseconds — run on every commit | Seconds — run in CI / before release |
 
@@ -125,5 +126,5 @@ The database checks use it to find unindexed foreign keys and query filters.
 | 7 | **Reliability** (11 quick + 3 in-depth + 7 manual) — retries, circuit breakers, idempotency keys, verified/deduped webhooks, central error handler, Express 4 async errors, error boundaries, pinned images, feature flags, queue DLQs, env validation | done |
 | 8 | **CI/CD & quality** (14 quick + 3 in-depth + 7 manual) — pipeline, tests + test script, CI runs tests/lint/typecheck, coverage threshold, CODEOWNERS, automated deploys, staging + gated prod, frozen installs, SHA-pinned actions, workflow injection/permissions, hooks, monorepo affected builds, releases | done |
 | 9 | **Frontend & a11y** (16 quick + 4 in-depth + 7 manual) — image weight/dimensions, heavy libs, code splitting, perf budgets, fonts, third-party scripts, source maps, alt text, labels, semantic controls, lang/title, a11y tooling, zoom, focus, reduced motion | done |
-| 10 | **API design** | next |
-| 11 | Per-app reports for monorepos, HTML dashboard, publish to npm | |
+| 10 | **API design** (12 quick + 3 in-depth + 7 manual) — contracts, spec sync, versioning, one error format, status codes, payload/GraphQL limits, docs, shared clients, contract tests, naming, rate-limit headers | done |
+| 11 | Per-app reports for monorepos, HTML dashboard, publish to npm | next |
