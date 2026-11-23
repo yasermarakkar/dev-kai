@@ -1,5 +1,8 @@
 import './instrument.js';
 import express from 'express';
+import 'express-async-errors';
+import { initialize as initFlags } from 'unleash-client';
+import { config } from './config.js';
 import * as Sentry from '@sentry/node';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -24,7 +27,8 @@ const pool = new pg.Pool({
   statement_timeout: 5_000,
   ssl: { rejectUnauthorized: true, ca: process.env.DB_CA_CERT },
 });
-const redis = new Redis(process.env.REDIS_URL);
+const redis = new Redis(config.REDIS_URL);
+const flags = initFlags({ url: config.UNLEASH_URL, appName: 'secure-api', customHeaders: { Authorization: config.UNLEASH_TOKEN } });
 const app = express();
 app.set('trust proxy', 1);
 app.use(compression());
@@ -53,11 +57,17 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/orders', requireAuth, async (req, res) => {
+  if (!flags.isEnabled('orders-enabled')) return res.status(503).json({ message: 'Ordering temporarily disabled' });
+  const key = req.get('Idempotency-Key');
+  if (!key) return res.status(400).json({ message: 'Idempotency-Key header required' });
+  const previous = await redis.get(`idem:${req.user.id}:${key}`);
+  if (previous) return res.status(201).json(JSON.parse(previous));
   const Order = z.object({ sku: z.string(), qty: z.number().int().positive() }).strict();
   const input = Order.parse(req.body);
   try {
     const { rows } = await pool.query('INSERT INTO orders (sku, qty, user_id, created_by) VALUES ($1, $2, $3, $3) RETURNING id', [input.sku, input.qty, req.user.id]);
     await recordAudit(pool, req, { action: 'order.create', targetType: 'order', targetId: rows[0].id });
+    await redis.set(`idem:${req.user.id}:${key}`, JSON.stringify(rows[0]), 'EX', 86_400);
     res.status(201).json(rows[0]);
   } catch (err) {
     req.log.error({ err }, 'order insert failed');
