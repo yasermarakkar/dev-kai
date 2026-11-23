@@ -20,6 +20,7 @@ readiness/
   monitoring.md
   auditing.md
   database.md
+  scalability.md
   report.json    ← with --format json, for CI / dashboards
 ```
 
@@ -39,7 +40,7 @@ Scan options: `--only security,logging` · `--format console,md,json` · `--out 
 |---|---|---|
 | Matching | Regex, line by line | Comment-aware, follows statements across lines |
 | Comments | Can match commented-out code | Ignored |
-| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels, health handlers that skip the DB, public `/metrics`, silent 5xx catch blocks, routes with no audit event, spoofable audit actor, unrecorded 403s, filtered columns without an index, N+1 queries, multi-write functions without a transaction |
+| Extra checks | — | Taint tracing (req input → SQL/shell/fs/redirect/fetch/HTML), route auth inventory (Express-style, NestJS, Next.js), mass assignment, `npm audit` CVEs, raw-object logging, catch-block log levels, health handlers that skip the DB, public `/metrics`, silent 5xx catch blocks, routes with no audit event, spoofable audit actor, unrecorded 403s, filtered columns without an index, N+1 queries, multi-write functions without a transaction, module-level state written by handlers, blocking sync calls in handlers, outbound calls without a timeout |
 | Findings | file:line | file:line + surrounding code |
 | Speed | Milliseconds — run on every commit | Seconds — run in CI / before release |
 
@@ -117,7 +118,7 @@ The database checks use it to find unindexed foreign keys and query filters.
 | 3 | **Monitoring** (11 quick + 3 in-depth + 7 manual) — health/readiness, error tracking (server + frontend), metrics, tracing, probes, alerts as code, RUM, source maps | done |
 | 4 | **Auditing** (8 quick + 3 in-depth + 7 manual) — audit store and fields, auth/admin events, append-only protection, created_by/soft delete, no secrets, retention | done |
 | 5 | **Database** (10 quick + 3 in-depth + 7 manual) — migrations, no auto-sync, FK indexes, pooling, timeouts, TLS, pagination, deploy-safe migrations, backups, shutdown | done |
-| 6 | **Scalability & load balancing** — statelessness, graceful shutdown, timeouts, caching, queues | next |
-| 7 | **Reliability** — retries/backoff, circuit breakers, idempotency, error handling | |
+| 6 | **Scalability & load balancing** (14 quick + 3 in-depth + 7 manual) — shared sessions/uploads/rate limits, graceful shutdown, outbound + keep-alive timeouts, caching, jobs, WebSockets, autoscaling, resources, trust proxy, compression, load tests | done |
+| 7 | **Reliability** — retries/backoff, circuit breakers, idempotency, error handling | next |
 | 8 | **CI/CD & quality**, **Frontend performance & accessibility**, **API design** | |
 | 9 | Per-app reports for monorepos, HTML dashboard, publish to npm | |

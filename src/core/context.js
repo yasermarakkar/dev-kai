@@ -18,7 +18,8 @@ const CODE_EXT = new Set(['.js', '.cjs', '.mjs', '.ts', '.cts', '.mts', '.jsx', 
 
 const MAX_FILE_BYTES = 1024 * 1024;
 
-const TEST_FILE_RE = /(^|\/)(__tests__|__mocks__|tests?|spec|e2e|fixtures?|cypress|playwright)\/|\.(test|spec|e2e)\.[cm]?[jt]sx?$/i;
+// Tests, fixtures and load/benchmark scripts are not application code.
+const TEST_FILE_RE = /(^|\/)(__tests__|__mocks__|tests?|spec|e2e|fixtures?|cypress|playwright|load-?tests?|perf|k6|benchmarks?|bench)\/|\.(test|spec|e2e|k6|bench)\.[cm]?[jt]sx?$/i;
 
 const SERVER_FRAMEWORKS = {
   express: 'Express',

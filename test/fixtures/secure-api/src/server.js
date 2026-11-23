@@ -4,6 +4,9 @@ import * as Sentry from '@sentry/node';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import Redis from 'ioredis';
+import compression from 'compression';
 import { z } from 'zod';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
@@ -21,10 +24,13 @@ const pool = new pg.Pool({
   statement_timeout: 5_000,
   ssl: { rejectUnauthorized: true, ca: process.env.DB_CA_CERT },
 });
+const redis = new Redis(process.env.REDIS_URL);
 const app = express();
+app.set('trust proxy', 1);
+app.use(compression());
 app.use(helmet());
 app.use(cors({ origin: ['https://app.example.com'], credentials: true }));
-app.use(rateLimit({ windowMs: 60_000, limit: 100 }));
+app.use(rateLimit({ windowMs: 60_000, limit: 100, store: new RedisStore({ sendCommand: (...args) => redis.call(...args) }) }));
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 
@@ -32,7 +38,10 @@ const Query = z.object({ name: z.string().max(64) });
 
 app.get('/users', async (req, res) => {
   const { name } = Query.parse(req.query);
+  const cached = await redis.get(`users:${name}`);
+  if (cached) return res.json(JSON.parse(cached));
   const { rows } = await pool.query('SELECT id, name FROM users WHERE name = $1', [name]);
+  await redis.set(`users:${name}`, JSON.stringify(rows), 'EX', 60);
   res.json(rows);
 });
 
@@ -76,10 +85,15 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(3000);
+// Load balancer idle timeout is 60 s: keep sockets open longer than that.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+server.requestTimeout = 30_000;
 
 process.on('SIGTERM', () => {
   server.close(async () => {
     await pool.end();
+    await redis.quit();
     process.exit(0);
   });
 });
