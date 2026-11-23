@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { runAudit, worstFailure } from './core/runner.js';
+import { runAudit, runAuditPerApp, discoverApps, worstFailure } from './core/runner.js';
 import { loadConfig, writeDefaultConfig } from './core/config.js';
 import { SEVERITY_RANK, color } from './core/utils.js';
 import { checklists } from './checklists/index.js';
-import { printReport } from './reporters/console.js';
-import { writeMarkdown, readConfirmedManual } from './reporters/markdown.js';
+import { printReport, printPerApp } from './reporters/console.js';
+import { writeMarkdown, writeMarkdownPerApp, readConfirmedManual } from './reporters/markdown.js';
 import { writeJson } from './reporters/json.js';
 
 const HELP = `
@@ -14,6 +14,7 @@ ${color.bold('devkai')} — production-readiness checklists for your apps
 ${color.bold('Usage')}
   devkai scan [dir]        Scan a project and write checklist files
   devkai list              List available checklists and checks
+  devkai apps [dir]        List the apps found in a monorepo
   devkai init [dir]        Create devkai.config.json
 
 ${color.bold('Scan options')}
@@ -26,6 +27,10 @@ ${color.bold('Scan options')}
                            lines, traces request input into sinks, audits routes
                            for auth, runs npm audit. Slower, more precise.
       --offline            With --review: skip checks that need the network
+  -p, --per-app            Monorepo: one report per app (each app's own code
+                           and deps + shared CI/config) and a score matrix
+  -a, --app <names>        Only these apps (name or dir, comma list); implies
+                           --per-app
   -c, --config <file>      Path to config file
   -v, --verbose            Show passing checks in console output
   -h, --help               Show help
@@ -45,27 +50,34 @@ async function scan(positionals, values) {
   const relOut = path.relative(root, outDir).split(path.sep).join('/');
   if (relOut && !relOut.startsWith('..')) config.ignore = [...(config.ignore ?? []), relOut];
 
-  const confirmed = readConfirmedManual(outDir);
-  const report = await runAudit({
-    root,
-    only: parseList(values.only),
-    config,
-    confirmed,
-    review: Boolean(values.review),
-    offline: Boolean(values.offline),
-  });
+  if (values['fail-on'] && SEVERITY_RANK[values['fail-on']] === undefined) throw new Error('--fail-on must be one of: critical, high, medium, low');
 
-  if (formats.has('console')) printReport(report, { verbose: values.verbose });
+  const common = { root, only: parseList(values.only), config, review: Boolean(values.review), offline: Boolean(values.offline) };
+  const apps = parseList(values.app);
+  let perApp = Boolean(values['per-app'] || apps?.length || config.perApp);
+  if (perApp && !apps?.length && discoverApps(root, config).length < 2) {
+    process.stdout.write(color.gray('Only one app found — writing a single report.\n'));
+    perApp = false;
+  }
+
+  const report = perApp
+    // Manual ticks are kept per app, in readiness/<app>/*.md
+    ? await runAuditPerApp({ ...common, apps, confirmedFor: (app) => readConfirmedManual(path.join(outDir, app.slug)) })
+    : await runAudit({ ...common, confirmed: readConfirmedManual(outDir) });
+
+  if (formats.has('console')) (perApp ? printPerApp : printReport)(report, { verbose: values.verbose });
   const written = [];
-  if (formats.has('md')) written.push(...writeMarkdown(report, outDir));
+  if (formats.has('md')) written.push(...(perApp ? writeMarkdownPerApp(report, outDir) : writeMarkdown(report, outDir)));
   if (formats.has('json')) written.push(...writeJson(report, outDir));
   if (written.length) {
-    process.stdout.write(`${color.gray('Wrote:')}\n${written.map((f) => `  ${path.relative(process.cwd(), f)}`).join('\n')}\n\n`);
+    const shown = written.length > 14
+      ? [`${written.length} files in ${path.relative(process.cwd(), outDir) || '.'}/ (start with README.md)`]
+      : written.map((f) => path.relative(process.cwd(), f));
+    process.stdout.write(`${color.gray('Wrote:')}\n${shown.map((f) => `  ${f}`).join('\n')}\n\n`);
   }
 
   if (values['fail-on']) {
     const threshold = SEVERITY_RANK[values['fail-on']];
-    if (threshold === undefined) throw new Error(`--fail-on must be one of: critical, high, medium, low`);
     if (worstFailure(report) >= threshold) {
       process.stderr.write(color.red(`Failing: found issues at or above "${values['fail-on']}".\n`));
       return 1;
@@ -100,6 +112,8 @@ export async function main(argv = process.argv.slice(2)) {
       config: { type: 'string', short: 'c' },
       verbose: { type: 'boolean', short: 'v' },
       review: { type: 'boolean', short: 'r' },
+      'per-app': { type: 'boolean', short: 'p' },
+      app: { type: 'string', short: 'a' },
       offline: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -115,6 +129,13 @@ export async function main(argv = process.argv.slice(2)) {
       return scan(rest, values);
     case 'list':
       return list(values);
+    case 'apps': {
+      const root = path.resolve(rest[0] ?? '.');
+      const found = discoverApps(root, loadConfig(root, values.config));
+      for (const a of found) process.stdout.write(`  ${a.name.padEnd(30)} ${color.gray(a.dir)}\n`);
+      process.stdout.write(color.gray(`${found.length} app(s)${found.length > 1 ? ' — scan them with: devkai scan --per-app' : ''}\n`));
+      return 0;
+    }
     case 'init': {
       const { file, created } = writeDefaultConfig(path.resolve(rest[0] ?? '.'));
       process.stdout.write(created ? `Created ${file}\n` : `Already exists: ${file}\n`);

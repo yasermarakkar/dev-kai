@@ -220,10 +220,10 @@ const sharedClients = defineCheck({
   why: 'Hand-written fetch calls in every app duplicate the contract — a renamed field breaks consumers at runtime, not at build time.',
   fix: 'Generate typed clients from the spec (openapi-typescript + openapi-fetch, orval, @hey-api/openapi-ts) or GraphQL codegen, or share tRPC/ts-rest/zod contracts as a workspace package.',
   run(ctx) {
-    const multiApp = ctx.apps.filter((a) => a.dir !== '.').length >= 2 || (ctx.stack.frontend.length && ctx.stack.hasBackend);
+    const multiApp = ctx.repoApps.filter((a) => a.dir !== '.').length >= 2 || (ctx.stack.frontend.length && ctx.stack.hasBackend);
     if (!multiApp) return skip('Single app — no internal API consumers detected.');
     const libs = SHARED_CLIENT.filter((l) => ctx.hasDep(l));
-    const sharedPkg = ctx.apps.some((a) => /(^|\/)(packages|libs)\/[^/]*(api|client|sdk|contract|types|schema)s?$/i.test(a.dir));
+    const sharedPkg = ctx.repoApps.some((a) => /(^|\/)(packages|libs)\/[^/]*(api|client|sdk|contract|types|schema)s?$/i.test(a.dir));
     if (libs.length || sharedPkg) return pass(libs.length ? `Typed clients via ${libs.join(', ')}.` : 'Shared contract/types package in the workspace.');
     return fail('Apps call each other without generated clients or shared types.');
   },

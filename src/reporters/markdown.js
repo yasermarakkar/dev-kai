@@ -172,3 +172,51 @@ export function writeMarkdown(report, outDir) {
   written.push(summary);
   return written;
 }
+
+// ---------------- per-app (monorepo) ----------------
+
+function cell(score) {
+  return score === null ? '–' : String(score);
+}
+
+export function renderPerAppSummary(report) {
+  const ids = report.reports[0]?.checklists.map((cl) => cl) ?? [];
+  const out = [];
+  out.push(`# Production readiness — ${report.project}`);
+  out.push('');
+  out.push(`**Overall score:** ${scoreBadge(report.score)}  `);
+  out.push(`**Apps:** ${report.reports.length}  `);
+  out.push(`**Mode:** ${report.mode === 'review' ? 'in-depth review' : 'quick scan (pattern matching) — use `--review` for in-depth analysis'}  `);
+  out.push(`**Generated:** ${report.generatedAt}`);
+  out.push('');
+  out.push('Each app is scanned with its own code and dependencies plus the shared repo files (CI, root config, infra). Click a score for that app\'s checklist; `–` means not applicable.');
+  out.push('');
+  out.push(`| App | Overall | ${ids.map((cl) => cl.title).join(' | ')} |`);
+  out.push(`|---|---|${ids.map(() => '---').join('|')}|`);
+  for (const r of report.reports) {
+    const cells = r.checklists.map((cl) => (cl.score === null ? '–' : `[${cl.score}](./${r.app.slug}/${cl.id}.md)`));
+    out.push(`| [${r.app.name}](./${r.app.slug}/README.md) \`${r.app.dir}\` | **${cell(r.score)}** | ${cells.join(' | ')} |`);
+  }
+  out.push('');
+  const top = report.reports
+    .flatMap((r) => r.checklists.flatMap((cl) => cl.checks.filter((c) => c.status === 'fail').map((c) => ({ ...c, app: r.app, checklist: cl.id }))))
+    .sort(bySeverity)
+    .slice(0, 15);
+  if (top.length) {
+    out.push('## Fix first (across all apps)');
+    out.push('');
+    top.forEach((c, i) => out.push(`${i + 1}. **[${c.severity}]** \`${c.app.name}\` — ${c.title} [\`${c.id}\`](./${c.app.slug}/${c.checklist}.md)`));
+    out.push('');
+  }
+  return out.join('\n');
+}
+
+export function writeMarkdownPerApp(report, outDir) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const written = [];
+  for (const r of report.reports) written.push(...writeMarkdown(r, path.join(outDir, r.app.slug)));
+  const summary = path.join(outDir, 'README.md');
+  fs.writeFileSync(summary, `${renderPerAppSummary(report)}\n`);
+  written.push(summary);
+  return written;
+}

@@ -58,3 +58,43 @@ export function printReport(report, { verbose = false } = {}) {
   }
   log();
 }
+
+const SHORT = { security: 'sec', logging: 'log', monitoring: 'mon', auditing: 'aud', database: 'db', scalability: 'scale', reliability: 'rel', cicd: 'ci/cd', frontend: 'web', api: 'api' };
+
+function scoreCell(score, width) {
+  if (score === null) return color.gray('–'.padStart(width));
+  const s = String(score).padStart(width);
+  if (score >= 90) return color.green(s);
+  if (score >= 70) return color.yellow(s);
+  return color.red(s);
+}
+
+export function printPerApp(report, { verbose = false } = {}) {
+  const log = (s = '') => process.stdout.write(`${s}\n`);
+  if (verbose) for (const r of report.reports) printReport(r, { verbose });
+  log();
+  log(`${color.bold(`devkai readiness — ${report.project}`)} ${color.gray(`[${report.mode} scan, ${report.reports.length} apps]`)}`);
+  log(color.gray(report.root));
+  log();
+  const lists = report.reports[0]?.checklists ?? [];
+  const nameWidth = Math.min(28, Math.max(8, ...report.reports.map((r) => r.app.name.length)));
+  const w = 6;
+  log(`${'app'.padEnd(nameWidth)}  ${'all'.padStart(w)}${lists.map((cl) => (SHORT[cl.id] ?? cl.id).padStart(w)).join('')}`);
+  for (const r of report.reports) {
+    const name = r.app.name.length > nameWidth ? `${r.app.name.slice(0, nameWidth - 1)}…` : r.app.name;
+    log(`${name.padEnd(nameWidth)}  ${scoreCell(r.score, w)}${r.checklists.map((cl) => scoreCell(cl.score, w)).join('')}`);
+  }
+  log();
+  for (const r of report.reports) {
+    const worst = r.checklists
+      .flatMap((cl) => cl.checks.filter((c) => c.status === 'fail' && (SEVERITY_RANK[c.severity] ?? 0) >= SEVERITY_RANK.high))
+      .sort((a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0));
+    if (!worst.length) continue;
+    log(`${color.bold(r.app.name)} ${color.gray(r.app.dir)}`);
+    for (const c of worst.slice(0, 4)) log(`  ${ICON.fail} ${(SEV_COLOR[c.severity] ?? String)(c.severity.padEnd(8))} ${c.title} ${color.gray(c.id)}`);
+    if (worst.length > 4) log(color.gray(`  …${worst.length - 4} more high/critical`));
+  }
+  log();
+  log(`${color.bold('Overall')}  ${scoreColor(report.score)}`);
+  log();
+}

@@ -53,10 +53,11 @@ export function selectChecklists(only) {
  *   confirmed?: Set<string>,  // manual check ids a human already ticked
  *   review?: boolean,         // in-depth mode: comment-aware, multi-line, taint + route analysis
  *   offline?: boolean,        // skip checks that need the network (e.g. npm audit)
+ *   scope?: string,           // audit a single app directory of a monorepo (see runAuditPerApp)
  * }} opts
  */
-export async function runAudit({ root, only, config = {}, confirmed = new Set(), review = false, offline = false }) {
-  const ctx = createContext(root, config, { review, offline });
+export async function runAudit({ root, only, config = {}, confirmed = new Set(), review = false, offline = false, scope }) {
+  const ctx = createContext(root, config, { review, offline, scope });
   const disabled = new Set(config.disable ?? []);
   const results = [];
   let reviewOnly = 0;
@@ -113,6 +114,15 @@ export async function runAudit({ root, only, config = {}, confirmed = new Set(),
       });
     }
 
+    // A checklist where every automated check is "not applicable" (e.g. frontend checks on an API)
+    // should not ask humans to tick its manual items either.
+    const automated = checks.filter((c) => !c.manual && c.message !== 'Disabled in config');
+    if (automated.length && automated.every((c) => c.status === 'skip')) {
+      for (const c of checks) {
+        if (c.manual) Object.assign(c, { status: 'skip', confirmed: false, message: 'Checklist not applicable to this app' });
+      }
+    }
+
     results.push({
       id: checklist.id,
       title: checklist.title,
@@ -131,6 +141,7 @@ export async function runAudit({ root, only, config = {}, confirmed = new Set(),
     reviewChecksSkipped: reviewOnly,
     project: ctx.name,
     root: ctx.root,
+    scope: ctx.scope,
     stack: ctx.stack,
     apps: ctx.apps.map((a) => ({ name: a.name, dir: a.dir })),
     score: computeScore(everyCheck),
@@ -139,8 +150,62 @@ export async function runAudit({ root, only, config = {}, confirmed = new Set(),
   };
 }
 
-/** Highest failing severity rank in the report, or -1. */
+/** URL/file-safe name for an app directory: "apps/api" → "apps-api", "." → "root". */
+export function appSlug(dir) {
+  return dir === '.' ? 'root' : dir.replace(/[\\/]+/g, '-').replace(/[^\w.-]/g, '_');
+}
+
+const SUPPORT_FILE = /(^|\/)[\w.-]*\.config\.[cm]?[jt]s$|^(scripts|tools|bin|\.husky|\.github)\//;
+
+/**
+ * Apps of a repository, as audited by --per-app: every package.json outside fixtures,
+ * plus the root when it contains application code of its own (not just workspace config).
+ */
+export function discoverApps(root, config = {}) {
+  const ctx = createContext(root, config);
+  const rootHasCode = ctx.appCodeFiles.some((f) => ctx.ownerOf(f) === '.' && !SUPPORT_FILE.test(f));
+  return ctx.repoApps
+    .filter((a) => a.dir !== '.' || rootHasCode || ctx.repoApps.length === 1)
+    .map((a) => ({ name: a.name, dir: a.dir, slug: appSlug(a.dir) }));
+}
+
+/**
+ * Audit every app of a monorepo separately. Each app sees its own files plus shared repo files
+ * (CI, root config, infra) and only its own dependencies.
+ * @param {Parameters<typeof runAudit>[0] & {
+ *   apps?: string[],                              // limit to these app names or dirs
+ *   confirmedFor?: (app: { slug: string }) => Set<string>,
+ * }} opts
+ */
+export async function runAuditPerApp({ root, apps: wanted, confirmedFor = () => new Set(), ...opts }) {
+  let apps = discoverApps(root, opts.config);
+  if (wanted?.length) {
+    const unknown = wanted.filter((w) => !apps.some((a) => a.name === w || a.dir === w || a.slug === w));
+    if (unknown.length) throw new Error(`Unknown app(s): ${unknown.join(', ')}. Found: ${apps.map((a) => a.name).join(', ')}`);
+    apps = apps.filter((a) => wanted.includes(a.name) || wanted.includes(a.dir) || wanted.includes(a.slug));
+  }
+  const reports = [];
+  for (const app of apps) {
+    const report = await runAudit({ ...opts, root, scope: app.dir, confirmed: confirmedFor(app) });
+    reports.push({ ...report, app });
+  }
+  const everyCheck = reports.flatMap((r) => r.checklists.flatMap((cl) => cl.checks));
+  return {
+    tool: 'devkai-readiness',
+    perApp: true,
+    generatedAt: new Date().toISOString(),
+    mode: opts.review ? 'review' : 'quick',
+    root: reports[0]?.root ?? root,
+    project: createContext(root, opts.config).rootPkg?.name ?? root.split(/[\\/]/).pop(),
+    score: computeScore(everyCheck),
+    counts: tally(everyCheck),
+    reports,
+  };
+}
+
+/** Highest failing severity rank in a report (single or per-app), or -1. */
 export function worstFailure(report) {
+  if (report.perApp) return Math.max(-1, ...report.reports.map(worstFailure));
   let worst = -1;
   for (const cl of report.checklists) {
     for (const c of cl.checks) {

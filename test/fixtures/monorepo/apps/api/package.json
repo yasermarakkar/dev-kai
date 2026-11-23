@@ -1,0 +1,6 @@
+{
+  "name": "@shop/api",
+  "scripts": { "test": "vitest run" },
+  "dependencies": { "express": "^5.1.0", "helmet": "^8.0.0", "express-rate-limit": "^7.4.0", "cors": "^2.8.5", "zod": "^3.23.0", "pino": "^9.5.0", "pino-http": "^10.3.0", "@shop/shared-types": "*" },
+  "devDependencies": { "vitest": "^2.1.0" }
+}

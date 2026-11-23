@@ -100,8 +100,11 @@ function pickNames(deps, table) {
  * Build the read-only view of a project that every check receives.
  * @param {string} rootDir
  * @param {{ ignore?: string[] }} [config]
- * @param {{ review?: boolean, offline?: boolean }} [options]
+ * @param {{ review?: boolean, offline?: boolean, scope?: string }} [options]
  *   review: comment-aware, multi-line matching with code context (slower, more precise)
+ *   scope:  an app directory (e.g. "apps/api"). The context then contains that app's files plus
+ *           shared repo files (CI, root config, infra) — but not the files of other apps — and
+ *           only that app's and the root package's dependencies.
  */
 export function createContext(rootDir, config = {}, options = {}) {
   const review = Boolean(options.review);
@@ -111,12 +114,10 @@ export function createContext(rootDir, config = {}, options = {}) {
   }
 
   const ignore = [...DEFAULT_IGNORE, ...(config.ignore ?? [])];
-  const files = walk(root, ignore);
-  const fileSet = new Set(files);
-  const cache = new Map();
+  const allFiles = walk(root, ignore);
 
   // Every package.json is an "app" (monorepo friendly).
-  const apps = files
+  const repoApps = allFiles
     // Sample projects under fixtures/mocks are test data, not apps of this repo.
     .filter((f) => path.posix.basename(f) === 'package.json' && !/(^|\/)(fixtures?|__fixtures__|__mocks__|examples?-?fixtures?)\//.test(f))
     .map((f) => {
@@ -124,6 +125,17 @@ export function createContext(rootDir, config = {}, options = {}) {
       const dir = path.posix.dirname(f);
       return { name: pkg.name ?? (dir === '.' ? path.basename(root) : dir), dir, pkg };
     });
+
+  const scope = options.scope && options.scope !== '.' ? options.scope.replace(/\/$/, '') : null;
+  if (scope && !repoApps.some((a) => a.dir === scope)) throw new Error(`No package.json in ${scope}`);
+  const appDirs = repoApps.map((a) => a.dir).filter((d) => d !== '.').sort((a, b) => b.length - a.length);
+  /** The app a file belongs to: the deepest app directory containing it, or "." for shared repo files. */
+  const ownerOf = (f) => appDirs.find((d) => f.startsWith(`${d}/`)) ?? '.';
+
+  const files = scope ? allFiles.filter((f) => { const o = ownerOf(f); return o === scope || o === '.'; }) : allFiles;
+  const apps = scope ? repoApps.filter((a) => a.dir === scope || a.dir === '.') : repoApps;
+  const fileSet = new Set(files);
+  const cache = new Map();
 
   const deps = new Set();
   const prodDeps = new Set(); // shipped to production (not devDependencies)
@@ -254,11 +266,15 @@ export function createContext(rootDir, config = {}, options = {}) {
 
   return {
     root,
-    name: rootPkg?.name ?? path.basename(root),
+    name: scope ? (repoApps.find((a) => a.dir === scope)?.name ?? scope) : (rootPkg?.name ?? path.basename(root)),
+    scope: scope ?? '.',
     review,
     offline: Boolean(options.offline),
     rootPkg,
     apps,
+    /** Every package in the repository, regardless of scope (for repo-level checks). */
+    repoApps,
+    ownerOf,
     deps,
     prodDeps,
     files,

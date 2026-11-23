@@ -5,6 +5,8 @@ export const CONFIG_FILE = 'devkai.config.json';
 
 export const DEFAULT_CONFIG = {
   outDir: 'readiness',
+  // Monorepo: one report per app by default (same as --per-app)
+  perApp: false,
   // Extra paths to skip, on top of node_modules, dist, build, etc.
   ignore: [],
   // Check ids to turn off, e.g. ["SEC-013"]

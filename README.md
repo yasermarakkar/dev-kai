@@ -34,9 +34,33 @@ readiness/
 |---|---|
 | `devkai scan [dir]` | Scan a project, print a summary, write checklist files |
 | `devkai list` | List all checklists and checks |
+| `devkai apps [dir]` | List the apps found in a monorepo |
 | `devkai init [dir]` | Create `devkai.config.json` |
 
-Scan options: `--only security,logging` · `--format console,md,json` · `--out <dir>` · `--fail-on high` (exit 1 for CI) · `--review` · `--offline` · `--verbose` · `--config <file>`.
+Scan options: `--only security,logging` · `--format console,md,json` · `--out <dir>` · `--fail-on high` (exit 1 for CI) · `--review` · `--offline` · `--per-app` · `--app <names>` · `--verbose` · `--config <file>`.
+
+## Monorepos: one report per app
+
+```bash
+devkai apps .                 # list the apps found (every package.json outside fixtures)
+devkai scan . --per-app       # one report per app + a score matrix
+devkai scan . --app api,web   # only these apps (name or dir)
+```
+
+Each app is scanned with **its own files and dependencies** plus the **shared repo files** (`.github/`, root
+config, infra) — never another app's code. So `helmet` in `apps/api` does not make `apps/admin` pass, and
+frontend checks only score the apps that have a frontend (`–` = not applicable). Repo-level checks
+(monorepo tooling, shared clients) still see every package.
+
+```
+readiness/
+  README.md            ← apps × checklists score matrix + "fix first" across all apps
+  apps-api/            ← that app's README + security.md, logging.md, …
+  apps-web/
+```
+
+Manual ticks are kept per app (`readiness/<app>/*.md`). Set `"perApp": true` in `devkai.config.json` to make it the default.
+`--fail-on` fails if **any** app has an issue at that severity.
 
 ## Two modes: quick (default) and `--review`
 
@@ -127,4 +151,5 @@ The database checks use it to find unindexed foreign keys and query filters.
 | 8 | **CI/CD & quality** (14 quick + 3 in-depth + 7 manual) — pipeline, tests + test script, CI runs tests/lint/typecheck, coverage threshold, CODEOWNERS, automated deploys, staging + gated prod, frozen installs, SHA-pinned actions, workflow injection/permissions, hooks, monorepo affected builds, releases | done |
 | 9 | **Frontend & a11y** (16 quick + 4 in-depth + 7 manual) — image weight/dimensions, heavy libs, code splitting, perf budgets, fonts, third-party scripts, source maps, alt text, labels, semantic controls, lang/title, a11y tooling, zoom, focus, reduced motion | done |
 | 10 | **API design** (12 quick + 3 in-depth + 7 manual) — contracts, spec sync, versioning, one error format, status codes, payload/GraphQL limits, docs, shared clients, contract tests, naming, rate-limit headers | done |
-| 11 | Per-app reports for monorepos, HTML dashboard, publish to npm | next |
+| 11 | Per-app reports for monorepos (`--per-app`, `--app`, `devkai apps`) | done |
+| 12 | HTML dashboard, CI for this package, publish to npm | next |

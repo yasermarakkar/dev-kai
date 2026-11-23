@@ -70,7 +70,7 @@ const testsExist = defineCheck({
     const tests = testFiles(ctx);
     const framework = TEST_FRAMEWORKS.filter((t) => ctx.hasDep(t));
     const placeholder = scriptsOf(ctx).filter(({ scripts }) => !scripts.test || /no test specified|exit 1/.test(scripts.test));
-    const appsWithCode = ctx.apps.filter((a) => ctx.appCodeFiles.some((f) => a.dir === '.' || f.startsWith(`${a.dir}/`)));
+    const appsWithCode = ctx.apps.filter((a) => ctx.appCodeFiles.some((f) => ctx.ownerOf(f) === a.dir));
     if (!tests.length) return fail('No test files found.');
     if (placeholder.length === ctx.apps.length) return fail(`${tests.length} test file(s) but no working "test" script.`, placeholder.map(({ app }) => ({ file: path.posix.join(app.dir, 'package.json') })));
     const missing = appsWithCode.filter((a) => !a.pkg.scripts?.test || /no test specified/.test(a.pkg.scripts.test));
@@ -307,7 +307,7 @@ const monorepo = defineCheck({
   why: 'With several apps in one repo, rebuilding everything on every change makes CI slow and flaky; unrelated breakages block unrelated teams.',
   fix: 'Use workspaces (npm/pnpm/yarn) with Turborepo or Nx (`turbo run test --filter=...[origin/main]`, `nx affected -t test`) and remote caching.',
   run(ctx) {
-    const apps = ctx.apps.filter((a) => a.dir !== '.');
+    const apps = ctx.repoApps.filter((a) => a.dir !== '.'); // repo-level: all packages, even in a per-app scan
     if (apps.length < 2) return skip('Single-app repository.');
     const tool = ctx.hasDep('turbo', 'nx', 'lerna', '@nrwl/workspace', 'lage', 'moon', '@moonrepo/cli', 'wireit');
     const workspaces = Boolean(ctx.rootPkg?.workspaces) || ctx.exists('pnpm-workspace.yaml');

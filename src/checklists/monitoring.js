@@ -185,6 +185,7 @@ const alertsAsCode = defineCheck({
   why: 'Click-ops alerts drift, get deleted and are not reviewed; alerts in git are versioned with the service they protect.',
   fix: 'Keep alert rules in the repo: Prometheus/Alertmanager rule files, Terraform (datadog_monitor, aws_cloudwatch_metric_alarm, grafana_rule_group), or Checkly/Sentry config.',
   run(ctx) {
+    if (!ctx.stack.hasBackend && !ctx.stack.frontend.length) return skip('Library package — nothing to alert on.');
     const iac = ctx.findFiles(/\.(ya?ml|json|tf|ts|js)$/).filter((f) => !ctx.codeFiles.includes(f) || /checkly|monitor|alert/i.test(f));
     const hits = iac.filter((f) => /^\s*-?\s*alert:\s*\S|resource\s+"(datadog_monitor|aws_cloudwatch_metric_alarm|grafana_rule_group|newrelic_alert_condition|newrelic_nrql_alert_condition|google_monitoring_alert_policy|azurerm_monitor_metric_alert|sentry_issue_alert|sentry_metric_alert|pagerduty_service)"|AWS::CloudWatch::Alarm|new\s+(ApiCheck|BrowserCheck)\s*\(|"type"\s*:\s*"(metric alert|query alert)"/m.test(ctx.read(f) ?? ''));
     if (hits.length) return pass(`Alert definitions in ${hits.slice(0, 3).join(', ')}${hits.length > 3 ? '…' : ''}.`);
