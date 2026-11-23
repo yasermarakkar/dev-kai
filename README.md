@@ -26,7 +26,23 @@ readiness/
   frontend.md
   api.md
   report.json    ← with --format json, for CI / dashboards
+  index.html     ← with --format html, an interactive dashboard
 ```
+
+### HTML dashboard
+
+```bash
+devkai scan . --per-app --format console,md,html
+open readiness/index.html
+```
+
+One self-contained file (no CDN, works offline from `file://`, safe to commit or attach to a CI run):
+overall score, an apps × checklists matrix (click a cell to filter), checklist cards, and every check
+with severity/status/search filters; expand a check for why, fix, file:line and — in `--review` mode —
+the surrounding code. Light and dark themes, phone-friendly.
+
+Report text comes from your source code, so the page treats it as untrusted: data is embedded as escaped
+JSON and rendered with `textContent` only.
 
 ## Commands
 
@@ -37,7 +53,7 @@ readiness/
 | `devkai apps [dir]` | List the apps found in a monorepo |
 | `devkai init [dir]` | Create `devkai.config.json` |
 
-Scan options: `--only security,logging` · `--format console,md,json` · `--out <dir>` · `--fail-on high` (exit 1 for CI) · `--review` · `--offline` · `--per-app` · `--app <names>` · `--verbose` · `--config <file>`.
+Scan options: `--only security,logging` · `--format console,md,json,html` · `--out <dir>` · `--fail-on high` (exit 1 for CI) · `--review` · `--offline` · `--per-app` · `--app <names>` · `--verbose` · `--config <file>`.
 
 ## Monorepos: one report per app
 
@@ -152,4 +168,5 @@ The database checks use it to find unindexed foreign keys and query filters.
 | 9 | **Frontend & a11y** (16 quick + 4 in-depth + 7 manual) — image weight/dimensions, heavy libs, code splitting, perf budgets, fonts, third-party scripts, source maps, alt text, labels, semantic controls, lang/title, a11y tooling, zoom, focus, reduced motion | done |
 | 10 | **API design** (12 quick + 3 in-depth + 7 manual) — contracts, spec sync, versioning, one error format, status codes, payload/GraphQL limits, docs, shared clients, contract tests, naming, rate-limit headers | done |
 | 11 | Per-app reports for monorepos (`--per-app`, `--app`, `devkai apps`) | done |
-| 12 | HTML dashboard, CI for this package, publish to npm | next |
+| 12 | HTML dashboard (`--format html`) | done |
+| 13 | CI for this package, publish to npm | next |

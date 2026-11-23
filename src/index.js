@@ -7,4 +7,5 @@ export { loadConfig } from './core/config.js';
 export { checklists } from './checklists/index.js';
 export { writeMarkdown, writeMarkdownPerApp, renderChecklist, renderSummary, renderPerAppSummary, readConfirmedManual } from './reporters/markdown.js';
 export { writeJson } from './reporters/json.js';
+export { writeHtml, renderHtml, safeJson } from './reporters/html.js';
 export { printReport, printPerApp } from './reporters/console.js';

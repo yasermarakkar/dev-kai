@@ -7,6 +7,7 @@ import { checklists } from './checklists/index.js';
 import { printReport, printPerApp } from './reporters/console.js';
 import { writeMarkdown, writeMarkdownPerApp, readConfirmedManual } from './reporters/markdown.js';
 import { writeJson } from './reporters/json.js';
+import { writeHtml } from './reporters/html.js';
 
 const HELP = `
 ${color.bold('devkai')} — production-readiness checklists for your apps
@@ -19,7 +20,8 @@ ${color.bold('Usage')}
 
 ${color.bold('Scan options')}
   -o, --only <ids>         Comma list of checklists (e.g. security,logging)
-  -f, --format <list>      console,md,json (default: console,md)
+  -f, --format <list>      console,md,json,html (default: console,md)
+                           html = self-contained dashboard (readiness/index.html)
       --out <dir>          Output folder (default: <dir>/readiness)
       --fail-on <sev>      Exit 1 if any failure at/above severity
                            (critical|high|medium|low) — for CI
@@ -69,6 +71,7 @@ async function scan(positionals, values) {
   const written = [];
   if (formats.has('md')) written.push(...(perApp ? writeMarkdownPerApp(report, outDir) : writeMarkdown(report, outDir)));
   if (formats.has('json')) written.push(...writeJson(report, outDir));
+  if (formats.has('html')) written.push(...writeHtml(report, outDir));
   if (written.length) {
     const shown = written.length > 14
       ? [`${written.length} files in ${path.relative(process.cwd(), outDir) || '.'}/ (start with README.md)`]
