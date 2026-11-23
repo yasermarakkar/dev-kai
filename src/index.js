@@ -1,0 +1,10 @@
+export { runAudit, computeScore, worstFailure } from './core/runner.js';
+export { createContext } from './core/context.js';
+export { defineCheck, defineChecklist, pass, fail, warn, skip, unique } from './core/check.js';
+export { stripComments, extractArgs } from './core/lexer.js';
+export { findTaintedSinks, findRoutes } from './core/analysis.js';
+export { loadConfig } from './core/config.js';
+export { checklists } from './checklists/index.js';
+export { writeMarkdown, renderChecklist, renderSummary, readConfirmedManual } from './reporters/markdown.js';
+export { writeJson } from './reporters/json.js';
+export { printReport } from './reporters/console.js';

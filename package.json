@@ -1,0 +1,36 @@
+{
+  "name": "devkai-readiness",
+  "version": "0.1.0",
+  "description": "Production-readiness auditor: scans your apps and generates checklists for security, logging, monitoring, auditing, database, scaling and more — showing what is missing and where to improve.",
+  "type": "module",
+  "bin": {
+    "devkai": "bin/devkai.js"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "scan:self": "node bin/devkai.js scan ."
+  },
+  "engines": {
+    "node": ">=21"
+  },
+  "keywords": [
+    "audit",
+    "checklist",
+    "production-readiness",
+    "security",
+    "logging",
+    "monitoring",
+    "devops",
+    "cli"
+  ],
+  "license": "MIT"
+}
