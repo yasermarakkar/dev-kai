@@ -6,9 +6,10 @@ import database from './database.js';
 import scalability from './scalability.js';
 import reliability from './reliability.js';
 import cicd from './cicd.js';
+import frontend from './frontend.js';
 
 /**
  * Registry of all checklists. Each one produces its own file in the output folder.
  * Add a new category by creating `<id>.js` with defineChecklist() and listing it here.
  */
-export const checklists = [security, logging, monitoring, auditing, database, scalability, reliability, cicd];
+export const checklists = [security, logging, monitoring, auditing, database, scalability, reliability, cicd, frontend];

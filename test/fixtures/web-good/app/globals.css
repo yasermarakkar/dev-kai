@@ -1,0 +1,9 @@
+body { background: #ffffff; color: #1f2937; }
+.muted { color: #595959; }
+.skip-link { position: absolute; left: -999px; }
+.skip-link:focus-visible { left: 1rem; }
+:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in { animation: fade 200ms ease-out; }
+}
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }

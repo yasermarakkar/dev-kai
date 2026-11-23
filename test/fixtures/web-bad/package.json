@@ -1,0 +1,14 @@
+{
+  "name": "web-bad",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0",
+    "moment": "^2.30.1",
+    "lodash": "^4.17.21",
+    "framer-motion": "^11.0.0"
+  },
+  "devDependencies": { "vite": "^6.0.0", "@vitejs/plugin-react": "^4.3.0" }
+}

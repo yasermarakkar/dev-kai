@@ -1,0 +1,9 @@
+@font-face {
+  font-family: 'Brand';
+  src: url('/brand.woff2') format('woff2');
+}
+body { background: #ffffff; font-family: Brand, Inter, sans-serif; }
+.muted { color: #aaaaaa; }
+button:focus { outline: none; }
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

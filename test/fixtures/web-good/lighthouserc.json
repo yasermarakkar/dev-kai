@@ -1,0 +1,12 @@
+{
+  "ci": {
+    "collect": { "url": ["http://localhost:3000/", "http://localhost:3000/products"] },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "categories:accessibility": ["error", { "minScore": 0.95 }]
+      }
+    }
+  }
+}

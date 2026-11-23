@@ -1,0 +1,14 @@
+{
+  "name": "web-good",
+  "private": true,
+  "scripts": { "build": "next build", "lint": "next lint", "test:e2e": "playwright test" },
+  "dependencies": { "next": "^15.1.0", "react": "^19.0.0", "react-dom": "^19.0.0", "date-fns": "^4.1.0" },
+  "devDependencies": {
+    "eslint": "^9.15.0",
+    "eslint-config-next": "^15.1.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
+    "@playwright/test": "^1.49.0",
+    "@axe-core/playwright": "^4.10.0",
+    "@lhci/cli": "^0.14.0"
+  }
+}
