@@ -6,8 +6,9 @@ One file per area (security, logging, monitoring, auditing, database, scaling �
 Zero runtime dependencies. **Node 21+** (`.nvmrc` pins 22 LTS).
 
 ```bash
-npx devkai-readiness scan .            # once published
-node bin/devkai.js scan ./my-app       # from this repo
+npx devkai-readiness scan .                  # one-off, no install
+npm install --save-dev devkai-readiness      # or add it to a project…
+npx devkai scan . --review --format md,html  # …and run the `devkai` command
 ```
 
 Output:
@@ -180,6 +181,24 @@ CI (`.github/workflows/ci.yml`) runs lint, coverage and `npm audit` on Node 22 a
 `--review --fail-on high` and uploads the dashboard as a build artifact. Dependabot keeps dev dependencies and
 actions current. The package itself has **no runtime dependencies**.
 
+## Releasing (maintainers)
+
+Releases are published **only from CI**, never from a laptop:
+
+1. Move the `## [Unreleased]` notes in `CHANGELOG.md` under a new `## [x.y.z]` heading.
+2. `npm run release:patch` (or `release:minor` / `release:major`) — runs lint + tests, bumps the
+   version, commits and tags `vx.y.z`.
+3. `git push --follow-tags` — `.github/workflows/release.yml` checks the tag matches `package.json`
+   and the CHANGELOG, re-runs lint, coverage and the self-scan, then `npm publish --provenance`.
+
+One-time setup:
+- Add `repository` (`{ "type": "git", "url": "git+https://github.com/<owner>/<repo>.git" }`) to
+  `package.json` — provenance requires it to match the GitHub repo that publishes.
+- On npmjs.com, add this repo + `release.yml` as a **Trusted Publisher** for the package (OIDC; no
+  npm token stored in GitHub). For the very first version npm may require the package to exist:
+  publish 0.1.0 once with a granular token in the `NODE_AUTH_TOKEN` secret, then switch to trusted publishing.
+- In GitHub → Settings → Environments, create `npm` with required reviewers so every release needs an approval.
+
 ## Roadmap
 
 | Step | Checklist | Status |
@@ -198,4 +217,5 @@ actions current. The package itself has **no runtime dependencies**.
 | 11 | Per-app reports for monorepos (`--per-app`, `--app`, `devkai apps`) | done |
 | 12 | HTML dashboard (`--format html`) | done |
 | 13 | CI for this package (lint, coverage gate, audit, self-scan) and inline `devkai-ignore` | done |
-| 14 | Publish to npm (release workflow, provenance, changelog) | next |
+| 14 | npm release pipeline (tag-triggered, trusted publishing + provenance, CHANGELOG, LICENSE) | done |
+| 15 | First public release (needs repository URL + npm Trusted Publisher setup) | next |

@@ -1,0 +1,45 @@
+name: release
+
+# Publishes to npm when a version tag (v1.2.3) is pushed.
+# Create it with `npm run release:patch|minor|major`, then `git push --follow-tags`.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Configure required reviewers on this environment in the repo settings to gate every release.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) + provenance — no long-lived npm token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # ships npm 11, which supports trusted publishing
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Tag matches package.json version
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $expected" >&2
+            exit 1
+          fi
+      - name: CHANGELOG has an entry for this version
+        run: grep -q "^## \[$(node -p "require('./package.json').version")\]" CHANGELOG.md
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:coverage
+      - run: node bin/devkai.js scan . --review --format console --fail-on high
+      - run: npm publish --provenance --access public

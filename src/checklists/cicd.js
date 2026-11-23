@@ -333,6 +333,9 @@ const releases = defineCheck({
       || /release-please-action|changesets\/action|semantic-release/.test(ciText(ctx));
     const changelog = ctx.findFiles(/(^|\/)CHANGELOG\.md$/i).length > 0;
     if (tooling) return pass('Release tooling configured.');
+    // A tag-triggered publish/deploy pipeline plus a changelog is a complete (if manual-versioned) release process.
+    const tagRelease = /tags\s*:\s*\[?\s*['"]?v?[\w*.-]*['"]?/.test(ciText(ctx)) && /npm\s+publish|docker\s+push|deploy|gh\s+release/i.test(ciCommands(ctx));
+    if (changelog && tagRelease) return pass('Versioned releases: tag-triggered pipeline + CHANGELOG.');
     return changelog ? warn('CHANGELOG exists but releases are not automated.') : warn('No release/versioning process found.');
   },
 });
