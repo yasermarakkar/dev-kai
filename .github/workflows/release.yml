@@ -43,3 +43,10 @@ jobs:
       - run: npm run test:coverage
       - run: node bin/devkai.js scan . --review --format console --fail-on high
       - run: npm publish --provenance --access public
+        env:
+          # First release only: npm allows trusted publishing (OIDC) only for a package that
+          # already exists, so 0.1.0 is published with a granular token stored as this secret.
+          # Afterwards, add this repo + release.yml as the package's Trusted Publisher on
+          # npmjs.com, then delete the secret and these lines. If the secret is unset, npm
+          # falls back to OIDC automatically.
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
