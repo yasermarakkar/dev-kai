@@ -1,0 +1,6 @@
+# Default owner for everything in this repository.
+* @yasermarakkar
+
+# Release and CI changes publish to npm — always reviewed by the owner.
+/.github/ @yasermarakkar
+/package.json @yasermarakkar

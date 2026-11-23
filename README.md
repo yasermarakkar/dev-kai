@@ -192,8 +192,8 @@ Releases are published **only from CI**, never from a laptop:
    and the CHANGELOG, re-runs lint, coverage and the self-scan, then `npm publish --provenance`.
 
 One-time setup:
-- Add `repository` (`{ "type": "git", "url": "git+https://github.com/<owner>/<repo>.git" }`) to
-  `package.json` — provenance requires it to match the GitHub repo that publishes.
+- `package.json` → `repository` points at `github.com/yasermarakkar/dev-kai`; provenance requires
+  the publishing workflow to run in that repo.
 - On npmjs.com, add this repo + `release.yml` as a **Trusted Publisher** for the package (OIDC; no
   npm token stored in GitHub). For the very first version npm may require the package to exist:
   publish 0.1.0 once with a granular token in the `NODE_AUTH_TOKEN` secret, then switch to trusted publishing.
@@ -218,4 +218,4 @@ One-time setup:
 | 12 | HTML dashboard (`--format html`) | done |
 | 13 | CI for this package (lint, coverage gate, audit, self-scan) and inline `devkai-ignore` | done |
 | 14 | npm release pipeline (tag-triggered, trusted publishing + provenance, CHANGELOG, LICENSE) | done |
-| 15 | First public release (needs repository URL + npm Trusted Publisher setup) | next |
+| 15 | First public release (push to GitHub, npm Trusted Publisher setup) | next |
