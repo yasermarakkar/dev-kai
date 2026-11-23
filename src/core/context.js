@@ -117,7 +117,8 @@ export function createContext(rootDir, config = {}, options = {}) {
 
   // Every package.json is an "app" (monorepo friendly).
   const apps = files
-    .filter((f) => path.posix.basename(f) === 'package.json')
+    // Sample projects under fixtures/mocks are test data, not apps of this repo.
+    .filter((f) => path.posix.basename(f) === 'package.json' && !/(^|\/)(fixtures?|__fixtures__|__mocks__|examples?-?fixtures?)\//.test(f))
     .map((f) => {
       const pkg = readJson(path.join(root, f)) ?? {};
       const dir = path.posix.dirname(f);

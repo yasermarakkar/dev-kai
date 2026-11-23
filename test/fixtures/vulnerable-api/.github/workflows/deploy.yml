@@ -1,0 +1,23 @@
+name: deploy
+on:
+  pull_request_target:
+  push:
+    branches: [main]
+
+permissions: write-all
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: tj-actions/changed-files@v45
+      - uses: some-org/deploy-action@main
+      - run: npm install
+      - run: |
+          echo "Deploying PR: ${{ github.event.pull_request.title }}"
+          echo "token=${{ secrets.DEPLOY_TOKEN }}"
+      - name: Notify ${{ github.event.pull_request.title }}
+        run: ./scripts/deploy.sh

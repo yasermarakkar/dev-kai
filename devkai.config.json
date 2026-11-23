@@ -1,0 +1,6 @@
+{
+  "outDir": "readiness",
+  "ignore": ["test/fixtures"],
+  "disable": [],
+  "severity": {}
+}

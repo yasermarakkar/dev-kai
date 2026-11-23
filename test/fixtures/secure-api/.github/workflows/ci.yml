@@ -1,9 +1,61 @@
 name: ci
-on: [push]
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
+      - run: npm run lint
+      - run: npm test
       - run: npm audit --audit-level=high
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: arn:aws:iam::123456789012:role/deploy-staging, aws-region: eu-west-1 }
+      - uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with: { payload: '{"text":"deploying staging"}' }
+      - run: docker build -t "$REGISTRY/secure-api:$GITHUB_SHA" . && docker push "$REGISTRY/secure-api:$GITHUB_SHA"
+      - run: kubectl set image deployment/secure-api api="$REGISTRY/secure-api:$GITHUB_SHA" -n staging
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: arn:aws:iam::123456789012:role/deploy-production, aws-region: eu-west-1 }
+      - run: kubectl set image deployment/secure-api api="$REGISTRY/secure-api:$GITHUB_SHA" -n production

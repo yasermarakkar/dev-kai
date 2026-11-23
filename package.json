@@ -16,7 +16,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test \"test/*.test.js\"",
     "scan:self": "node bin/devkai.js scan ."
   },
   "engines": {
