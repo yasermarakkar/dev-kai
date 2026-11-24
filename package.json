@@ -1,6 +1,6 @@
 {
   "name": "devkai-readiness",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Production-readiness checklists for your apps: scans code, dependencies and config for security, logging, monitoring, auditing, database, scalability, reliability, CI/CD, frontend/a11y and API design gaps — and tells you where and how to fix them.",
   "repository": {
     "type": "git",
