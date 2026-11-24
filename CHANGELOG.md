@@ -7,6 +7,12 @@ contract: they are never reused, and removing or renaming one is a breaking chan
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Changed
+- Releases publish through npm Trusted Publishing (OIDC); no npm token is stored in the repository.
+- CI actions bumped: `checkout`, `setup-node` and `upload-artifact` to v7.
+
 ## [0.1.0] — first release
 
 ### Added

@@ -194,9 +194,9 @@ Releases are published **only from CI**, never from a laptop:
 One-time setup:
 - `package.json` → `repository` points at `github.com/yasermarakkar/dev-kai`; provenance requires
   the publishing workflow to run in that repo.
-- On npmjs.com, add this repo + `release.yml` as a **Trusted Publisher** for the package (OIDC; no
-  npm token stored in GitHub). For the very first version npm may require the package to exist:
-  publish 0.1.0 once with a granular token in the `NODE_AUTH_TOKEN` secret, then switch to trusted publishing.
+- On npmjs.com, add this repo + `release.yml` + environment `npm` as a **Trusted Publisher** for the
+  package, with "Allow `npm publish`" enabled (OIDC; no npm token stored in GitHub). npm only allows
+  this for a package that already exists, so the first version needs a one-off token.
 - In GitHub → Settings → Environments, create `npm` with required reviewers so every release needs an approval.
 
 ## Roadmap
