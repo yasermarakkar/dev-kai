@@ -24,7 +24,7 @@ export function loadConfig(root, explicitPath) {
   try {
     return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
   } catch (err) {
-    throw new Error(`Invalid JSON in ${file}: ${err.message}`);
+    throw new Error(`Invalid JSON in ${file}: ${err.message}`, { cause: err });
   }
 }
 
